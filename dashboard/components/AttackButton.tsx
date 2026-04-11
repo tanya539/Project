@@ -16,7 +16,7 @@ export default function AttackButton() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const toastId = toast.custom((_t) => (
       <div className="bg-[var(--bg)] border border-[var(--error-border)] p-4 rounded-xl shadow-xl flex items-start gap-3 min-w-[320px] animate-in slide-in-from-right-full">
-        <div className="p-2 bg-[var(--bg)] border border-[var(--error-border)] p-4 rounded-xl shadow-xl flex items-start gap-3 min-w-[320px] animate-in slide-in-from-right-full">
+
         <div className="p-2 bg-[var(--error-bg)] rounded-lg">
           <Siren className="w-5 h-5 text-[var(--error-text)] animate-pulse" />
         </div>
