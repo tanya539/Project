@@ -5,6 +5,7 @@ import { Server, Shield, AlertTriangle, Layers, TrendingUp, TrendingDown } from 
 import { motion } from "framer-motion";
 
 export default function DashboardCards() {
+  const API = process.env.NEXT_PUBLIC_API_URL;
   const [stats, setStats] = useState({
     totalAccounts: 3,
     activeResources: 25,
@@ -14,7 +15,7 @@ export default function DashboardCards() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const res = await fetch("/api/stats");
+      const res = await fetch(`${API}/api/stats`);
       if (res.ok) {
         setStats(await res.json());
       }

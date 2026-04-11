@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Violation } from "@/lib/store";
 
 export default function ViolationsTable({ limit = undefined }: { limit?: number }) {
+  const API = process.env.NEXT_PUBLIC_API_URL;
   const [violations, setViolations] = useState<Violation[]>([]);
 
   useEffect(() => {
     const fetchViolations = async () => {
-      const res = await fetch("/api/violations");
+      const res = await fetch(`${API}/api/violations`);
       if (res.ok) {
         setViolations(await res.json());
       }

@@ -14,12 +14,13 @@ interface Framework {
 }
 
 export default function CompliancePage() {
+  const API = process.env.NEXT_PUBLIC_API_URL;
   const [frameworks, setFrameworks] = useState<Framework[]>([]);
 
   useEffect(() => {
     const fetchFrameworks = async () => {
       try {
-        const res = await fetch("/api/compliance");
+        const res = await fetch(`${API}/api/compliance`);
         if (res.ok) {
           setFrameworks(await res.json());
         }

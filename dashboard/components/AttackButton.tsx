@@ -6,6 +6,7 @@ import { Siren, ShieldCheck, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function AttackButton() {
+  const API = process.env.NEXT_PUBLIC_API_URL;
   const [isAttacking, setIsAttacking] = useState(false);
 
   const simulateAttack = async () => {
@@ -15,6 +16,7 @@ export default function AttackButton() {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const toastId = toast.custom((_t) => (
       <div className="bg-[var(--bg)] border border-[var(--error-border)] p-4 rounded-xl shadow-xl flex items-start gap-3 min-w-[320px] animate-in slide-in-from-right-full">
+        <div className="p-2 bg-[var(--bg)] border border-[var(--error-border)] p-4 rounded-xl shadow-xl flex items-start gap-3 min-w-[320px] animate-in slide-in-from-right-full">
         <div className="p-2 bg-[var(--error-bg)] rounded-lg">
           <Siren className="w-5 h-5 text-[var(--error-text)] animate-pulse" />
         </div>
@@ -34,7 +36,7 @@ export default function AttackButton() {
     ), { duration: 3000 });
 
     try {
-      const res = await fetch("/api/simulate", { method: "POST" });
+      const res = await fetch(`${API}/api/simulate`, { method: "POST" });
       const data = await res.json();
       
       if (res.ok) {
@@ -61,7 +63,7 @@ export default function AttackButton() {
           ), { duration: 4000 });
 
           // Update the violation to fixed
-          await fetch("/api/violations", {
+          await fetch(`${API}/api/violations`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: data.violation.id, status: "Auto-Fixed" })
