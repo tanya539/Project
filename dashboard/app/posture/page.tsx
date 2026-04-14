@@ -44,6 +44,8 @@ export default function SecurityPosturePage() {
     color: cat.status === "Excellent" ? "text-emerald-600" : cat.status === "Good" ? "text-sky-600" : "text-amber-600",
     bg: cat.status === "Excellent" ? "bg-emerald-50" : cat.status === "Good" ? "bg-sky-50" : "bg-amber-50",
     border: cat.status === "Excellent" ? "border-emerald-200" : cat.status === "Good" ? "border-sky-200" : "border-amber-200",
+  }));
+
   return (
     <div className="p-6 space-y-6 animate-in fade-in duration-700 max-w-[1800px] mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 glass-card p-6 rounded-2xl">
