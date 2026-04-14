@@ -6,14 +6,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LogEntry } from "@/lib/store";
 
 export default function LogsPanel({ limit = undefined }: { limit?: number }) {
-  const API = process.env.NEXT_PUBLIC_API_URL;
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const res = await fetch(`${API}/api/logs`);
+      const res = await fetch('/api/logs');
       if (res.ok) {
         setLogs(await res.json());
       }

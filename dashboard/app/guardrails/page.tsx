@@ -1,13 +1,37 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Shield, CheckCircle2, XCircle } from "lucide-react";
 
+interface GuardrailData {
+  scps: Array<{ name: string; description: string }>;
+  configRules: Array<{ name: string; status: string }>;
+}
+
 export default function GuardrailsPage() {
+  const [guardrailsData, setGuardrailsData] = useState<GuardrailData | null>(null);
+
+  useEffect(() => {
+    const fetchGuardrails = async () => {
+      try {
+        const res = await fetch('/api/guardrails');
+        if (res.ok) {
+          setGuardrailsData(await res.json());
+        }
+      } catch (error) {
+        console.error("Failed to fetch guardrails data:", error);
+      }
+    };
+    fetchGuardrails();
+  }, []);
+
+  if (!guardrailsData) {
+    return <div className="p-6">Loading...</div>;
+  }
+
   const guardrails = [
-    { name: "Require MFA for Root Account", category: "IAM", type: "Preventive", status: "Enforced", resourceCount: 1 },
-    { name: "Block Public S3 Buckets", category: "Storage", type: "Preventive", status: "Enforced", resourceCount: 42 },
-    { name: "Encrypt EBS Volumes", category: "Compute", type: "Detective", status: "Warning", resourceCount: 12 },
-    { name: "Disable Unused Regions", category: "Network", type: "Preventive", status: "Enforced", resourceCount: 15 },
-    { name: "Enable CloudTrail Logging", category: "Audit", type: "Detective", status: "Enforced", resourceCount: 12 },
-    { name: "Restrict Admin Access", category: "IAM", type: "Preventive", status: "Warning", resourceCount: 3 },
+    ...guardrailsData.scps.map(scp => ({ name: scp.name, description: scp.description, category: "SCP", type: "Preventive", status: "Enforced", resourceCount: 1 })),
+    ...guardrailsData.configRules.map(rule => ({ name: rule.name, category: "Config", type: "Detective", status: rule.status === "COMPLIANT" ? "Enforced" : "Warning", resourceCount: 1 })),
   ];
 
   return (

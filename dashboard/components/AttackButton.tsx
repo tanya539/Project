@@ -36,7 +36,7 @@ export default function AttackButton() {
     ), { duration: 3000 });
 
     try {
-      const res = await fetch(`${API}/api/simulate`, { method: "POST" });
+      const res = await fetch('/api/simulate', { method: "POST" });
       const data = await res.json();
       
       if (res.ok) {
@@ -63,7 +63,7 @@ export default function AttackButton() {
           ), { duration: 4000 });
 
           // Update the violation to fixed
-          await fetch(`${API}/api/violations`, {
+          await fetch('/api/violations', {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: data.violation.id, status: "Auto-Fixed" })

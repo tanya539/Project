@@ -220,6 +220,101 @@ app.post('/api/simulate', (req, res) => {
   res.json({ success: true, violation: newViolation });
 });
 
+// Industry data analysis endpoint
+let industryDataConfig = null;
+
+app.post('/api/industry-data', (req, res) => {
+  const { industry, companySize, accountCount, dataClassification, riskLevel, compliance, notes } = req.body;
+
+  if (!industry || !companySize) {
+    return res.status(400).json({ success: false, message: "Missing required fields" });
+  }
+
+  industryDataConfig = {
+    industry,
+    companySize,
+    accountCount,
+    dataClassification,
+    riskLevel,
+    compliance,
+    notes,
+    timestamp: new Date().toISOString(),
+  };
+
+  // Generate industry-specific guardrail recommendations
+  const recommendations = generateGuardrailRecommendations(industryDataConfig);
+
+  logs.push({
+    id: `l${logs.length + 1}`,
+    message: `Industry data ingested: ${industry}/${companySize}. Analyzing ${accountCount} account(s).`,
+    timestamp: new Date().toISOString(),
+  });
+
+  res.json({ success: true, data: industryDataConfig, recommendations });
+});
+
+// Get industry data configuration
+app.get('/api/industry-data', (req, res) => {
+  if (!industryDataConfig) {
+    return res.status(404).json({ success: false, message: "No industry data configured" });
+  }
+  res.json(industryDataConfig);
+});
+
+// Generate guardrail recommendations based on industry data
+function generateGuardrailRecommendations(config) {
+  const recommendations = {
+    preventive: [],
+    detective: [],
+    responsive: [],
+  };
+
+  // Risk-based recommendations
+  if (config.riskLevel === 'critical' || config.riskLevel === 'high') {
+    recommendations.preventive.push("Enable MFA enforcement for all IAM principals");
+    recommendations.preventive.push("Restrict access to sensitive resources with least-privilege IAM");
+    recommendations.detective.push("Enable AWS Config for continuous compliance monitoring");
+    recommendations.responsive.push("Configure automatic remediation Lambda functions");
+  }
+
+  // Industry-specific recommendations
+  if (config.industry === "finance" || config.industry === "healthcare") {
+    recommendations.preventive.push("Enable encryption at rest for all data stores");
+    recommendations.preventive.push("Implement network segmentation and VPC isolation");
+    recommendations.detective.push("Enable GuardDuty for threat detection");
+    recommendations.detective.push("Enable AWS Config rule for PCI compliance");
+  }
+
+  // Compliance framework recommendations
+  config.compliance.forEach(fw => {
+    if (fw === "PCI DSS") {
+      recommendations.preventive.push("Enforce encryption for payment card data");
+      recommendations.detective.push("Enable VPC Flow Logs for network monitoring");
+    }
+    if (fw === "HIPAA") {
+      recommendations.preventive.push("Enable HIPAA-eligible encryption");
+      recommendations.preventive.push("Enable audit logging for PHI access");
+    }
+    if (fw === "GDPR") {
+      recommendations.preventive.push("Implement data residency controls");
+      recommendations.detective.push("Enable AWS CloudTrail for data access logs");
+    }
+  });
+
+  // Data classification recommendations
+  if (config.dataClassification.includes("PII") || config.dataClassification.includes("PHI")) {
+    recommendations.preventive.push("Block public S3 bucket access");
+    recommendations.detective.push("Enable Amazon Macie for sensitive data discovery");
+    recommendations.responsive.push("Implement automated data redaction for logs");
+  }
+
+  return {
+    summary: `Security posture recommendations for ${config.industry} (${config.companySize})`,
+    recommendations,
+    appliedAt: new Date().toISOString(),
+  };
+}
+
 // Root health / info endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -234,6 +329,7 @@ app.get('/', (req, res) => {
       '/api/posture',
       '/api/guardrails',
       '/api/simulate',
+      '/api/industry-data',
     ],
     timestamp: new Date().toISOString(),
   });

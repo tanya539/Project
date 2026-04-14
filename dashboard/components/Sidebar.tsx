@@ -17,6 +17,7 @@ import {
   Key,
   Tags,
   Settings,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,7 @@ export function Sidebar() {
     { name: "Threat Detection", href: "/violations", icon: Target, badge: "Live" },
     { name: "SIEM Integration", href: "/siem", icon: Database },
     { name: "IAM & Access", href: "/iam", icon: Key },
-    { name: "Data Classification", href: "/data", icon: Tags },
+    { name: "Industry Data", href: "/data", icon: Upload },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 

@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { Shield, Layout, Settings, Activity, Cpu, Key } from "lucide-react";
 
 interface ArchCardProps {
@@ -7,44 +10,50 @@ interface ArchCardProps {
   color: string;
 }
 
+interface ArchitectureData {
+  components: Array<{
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    color: string;
+  }>;
+  controlFlow: string[];
+}
+
 export default function ArchitecturePage() {
-  const components = [
-    {
-      id: "accounts",
-      name: "AWS Accounts",
-      description: "Master, Security, Log Archive",
-      icon: Layout,
-      color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    },
-    {
-      id: "iam",
-      name: "Identity & Access",
-      description: "Least-privilege IAM Roles",
-      icon: Key,
-      color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    },
-    {
-      id: "guardrails",
-      name: "Guardrails",
-      description: "SCP & AWS Config Rules",
-      icon: Shield,
-      color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-    },
-    {
-      id: "monitoring",
-      name: "Monitoring",
-      description: "CloudTrail & GuardDuty",
-      icon: Activity,
-      color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
-    },
-    {
-      id: "lambda",
-      name: "Remediation",
-      description: "Automated Lambda Fixes",
-      icon: Cpu,
-      color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    },
-  ];
+  const [archData, setArchData] = useState<ArchitectureData | null>(null);
+
+  useEffect(() => {
+    const fetchArch = async () => {
+      try {
+        const res = await fetch('/api/architecture');
+        if (res.ok) {
+          setArchData(await res.json());
+        }
+      } catch (error) {
+        console.error("Failed to fetch architecture data:", error);
+      }
+    };
+    fetchArch();
+  }, []);
+
+  if (!archData) {
+    return <div className="p-6">Loading...</div>;
+  }
+
+  const iconMap: { [key: string]: React.ComponentType<{ className?: string }> } = {
+    Layout,
+    Key,
+    Shield,
+    Activity,
+    Cpu,
+  };
+
+  const components = archData.components.map(comp => ({
+    ...comp,
+    icon: iconMap[comp.icon] || Layout,
+  }));
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto">
