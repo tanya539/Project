@@ -73,6 +73,135 @@ export default function DataInputPage() {
     return arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
   };
 
+  const mapComplianceControls = (controls: string[]) => {
+    const normalized = Array.from(new Set(controls.map(c => c.toUpperCase().trim())));
+    const mapped: string[] = [];
+
+    normalized.forEach((control) => {
+      if (/PCI/.test(control)) {
+        mapped.push("PCI DSS");
+      } else if (/HIPAA/.test(control)) {
+        mapped.push("HIPAA");
+      } else if (/GDPR/.test(control)) {
+        mapped.push("GDPR");
+      } else if (/CCPA/.test(control)) {
+        mapped.push("CCPA");
+      } else if (/NIST/.test(control)) {
+        mapped.push("NIST");
+      } else if (/CIS/.test(control)) {
+        mapped.push("SOC 2");
+      } else if (/ORG-/.test(control)) {
+        mapped.push("ISO 27001");
+      }
+    });
+
+    return mapped.length ? Array.from(new Set(mapped)) : ["NIST"];
+  };
+
+  const getImportLogRecords = (parsed: any) => {
+    if (!parsed) return null;
+    if (Array.isArray(parsed)) return parsed;
+
+    const candidateKeys = ["logs", "Records", "records", "Events", "events", "cloudtrailEvents"];
+    for (const key of candidateKeys) {
+      if (Array.isArray(parsed[key])) return parsed[key];
+    }
+
+    return null;
+  };
+
+  const deriveIndustryDataFromLogFile = (parsed: any): IndustryData | null => {
+    if (parsed == null) return null;
+
+    const logs = getImportLogRecords(parsed);
+    if (!logs || !logs.length || typeof logs[0] !== "object") {
+      if (typeof parsed.industry === "string") {
+        return {
+          industry: parsed.industry,
+          companySize: parsed.companySize ?? formData.companySize,
+          accountCount: Number(parsed.accountCount) || formData.accountCount,
+          dataClassification: Array.isArray(parsed.dataClassification)
+            ? parsed.dataClassification
+            : parsed.dataClassification
+            ? parsed.dataClassification.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
+            : [],
+          riskLevel: parsed.riskLevel ?? formData.riskLevel,
+          compliance: Array.isArray(parsed.compliance)
+            ? parsed.compliance
+            : parsed.compliance
+            ? parsed.compliance.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
+            : [],
+          notes: parsed.notes ?? formData.notes,
+        };
+      }
+      return null;
+    }
+
+    const services = new Set<string>();
+    const complianceControls: string[] = [];
+    const ouLevels = new Set<string>();
+    let highestRisk = 0;
+    let containsSensitive = false;
+
+    logs.forEach((rawEntry: any) => {
+      const entry = rawEntry || {};
+      const serviceValue = entry.service || entry.eventSource || entry.EventSource || entry.eventSource?.split?.(".")[0];
+      if (serviceValue) services.add(String(serviceValue));
+      if (entry.ou_level || entry.ouLevel || entry.OU || entry.accountId) {
+        ouLevels.add(String(entry.ou_level ?? entry.ouLevel ?? entry.OU ?? entry.accountId));
+      }
+
+      const eventName = entry.eventName || entry.action || entry.actionName || "";
+      const eventType = entry.eventType || entry.eventCategory || "";
+      const actionText = `${eventName} ${eventType} ${entry.scenario || ""}`.toLowerCase();
+      const detailText = `${JSON.stringify(entry.requestParameters || entry.resources || entry.responseElements || entry.additionalEventData || "")}`.toLowerCase();
+
+      if (/delete|disable|stop|unsecure|unencrypted|public|open|root|replicate|export|remove|weaken/.test(actionText + " " + detailText)) {
+        highestRisk = Math.max(highestRisk, 3);
+      } else if (/create|update|attach|put|modify|authorize|assume|grant|policy|role|group/.test(actionText + " " + detailText)) {
+        highestRisk = Math.max(highestRisk, 2);
+      } else {
+        highestRisk = Math.max(highestRisk, 1);
+      }
+
+      if (/s3|iam|cloudtrail|guardduty|config|kms|vpc|ec2|rds|lambda/.test(String(serviceValue || "").toLowerCase())) {
+        complianceControls.push(String(serviceValue || ""));
+      }
+      if (entry.compliance_control || entry.complianceControl) {
+        complianceControls.push(String(entry.compliance_control ?? entry.complianceControl));
+      }
+
+      if (/pii|phi|personal|sensitive|payment|credit|card|ssn/.test(actionText + " " + detailText)) {
+        containsSensitive = true;
+      }
+    });
+
+    const riskLevel = highestRisk >= 3 ? "critical" : highestRisk === 2 ? "high" : "medium";
+    const industry = services.has("cloudtrail") || services.has("s3") || services.has("iam")
+      ? "technology"
+      : services.has("guardduty")
+      ? "security"
+      : "technology";
+    const companySize = logs.length > 40 ? "enterprise" : logs.length > 15 ? "mid-market" : "smb";
+    const accountCount = Math.max(1, Math.min(100, Math.ceil(logs.length / 5)));
+    const dataClassification = containsSensitive ? ["Confidential"] : ["Internal"];
+
+    const compliance = mapComplianceControls(complianceControls);
+    if (!compliance.length) {
+      compliance.push("NIST");
+    }
+
+    return {
+      industry,
+      companySize,
+      accountCount,
+      dataClassification,
+      riskLevel,
+      compliance,
+      notes: `Imported ${logs.length} audit log records from file.`,
+    };
+  };
+
   const submitIndustryData = async (payload: IndustryData) => {
     setLoading(true);
 
@@ -126,23 +255,12 @@ export default function DataInputPage() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      const importedData: IndustryData = {
-        industry: parsed.industry ?? formData.industry,
-        companySize: parsed.companySize ?? formData.companySize,
-        accountCount: Number(parsed.accountCount) || formData.accountCount,
-        dataClassification: Array.isArray(parsed.dataClassification)
-          ? parsed.dataClassification
-          : parsed.dataClassification
-          ? parsed.dataClassification.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
-          : [],
-        riskLevel: parsed.riskLevel ?? formData.riskLevel,
-        compliance: Array.isArray(parsed.compliance)
-          ? parsed.compliance
-          : parsed.compliance
-          ? parsed.compliance.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
-          : [],
-        notes: parsed.notes ?? formData.notes,
-      };
+      const importedData = deriveIndustryDataFromLogFile(parsed);
+
+      if (!importedData) {
+        toast.error("Invalid file format.");
+        return;
+      }
 
       setFormData(importedData);
       toast.success("File loaded successfully. Submitting analysis...");

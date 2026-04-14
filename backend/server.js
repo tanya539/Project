@@ -51,6 +51,78 @@ function normalizeArray(input) {
   return [];
 }
 
+function mapComplianceControls(controls) {
+  const mapped = new Set();
+
+  controls.forEach((control) => {
+    const normalized = String(control || "").toUpperCase();
+    if (/PCI/.test(normalized)) mapped.add("PCI DSS");
+    else if (/HIPAA/.test(normalized)) mapped.add("HIPAA");
+    else if (/GDPR/.test(normalized)) mapped.add("GDPR");
+    else if (/CCPA/.test(normalized)) mapped.add("CCPA");
+    else if (/NIST/.test(normalized)) mapped.add("NIST");
+    else if (/CIS/.test(normalized)) mapped.add("SOC 2");
+    else if (/ORG-/.test(normalized)) mapped.add("ISO 27001");
+  });
+
+  return Array.from(mapped).length ? Array.from(mapped) : ["NIST"];
+}
+
+function extractLogsFromPayload(payload) {
+  if (!payload) return null;
+  if (Array.isArray(payload)) return payload;
+
+  const candidateKeys = ["logs", "Records", "records", "Events", "events", "cloudtrailEvents"];
+  for (const key of candidateKeys) {
+    if (Array.isArray(payload[key])) return payload[key];
+  }
+
+  return null;
+}
+
+function deriveIndustryDataFromLogs(logs) {
+  if (!Array.isArray(logs) || logs.length === 0) return null;
+
+  const services = new Set();
+  const complianceControls = [];
+  const ouLevels = new Set();
+  let highestRisk = 1;
+  let containsSensitive = false;
+
+  logs.forEach((entry) => {
+    if (entry.service) services.add(String(entry.service));
+    if (entry.ou_level || entry.ouLevel) ouLevels.add(String(entry.ou_level ?? entry.ouLevel));
+    if (entry.compliance_control || entry.complianceControl) {
+      complianceControls.push(String(entry.compliance_control ?? entry.complianceControl));
+    }
+
+    const actionText = `${entry.action || ""} ${entry.scenario || ""}`.toLowerCase();
+    if (/delete|disable|stop|unsecure|unencrypted|public|open|root|replicate|export|remove|weaken/.test(actionText)) {
+      highestRisk = Math.max(highestRisk, 3);
+    } else if (/create|update|attach|put|modify/.test(actionText)) {
+      highestRisk = Math.max(highestRisk, 2);
+    }
+
+    if (/PII|PHI|personal|sensitive|payment/.test(actionText) || /PII|PHI/.test(String(entry.compliance_control || entry.complianceControl))) {
+      containsSensitive = true;
+    }
+  });
+
+  const industry = services.has("CloudTrail") || services.has("S3") || services.has("IAM") ? "technology" : services.has("GuardDuty") ? "security" : "technology";
+  const companySize = logs.length > 40 ? "enterprise" : logs.length > 15 ? "mid-market" : "smb";
+  const accountCount = Math.max(1, Math.min(100, Math.ceil((ouLevels.size || 1) * 2)));
+
+  return {
+    industry,
+    companySize,
+    accountCount,
+    dataClassification: containsSensitive ? ["Confidential"] : ["Internal"],
+    riskLevel: highestRisk === 3 ? "critical" : highestRisk === 2 ? "high" : "medium",
+    compliance: mapComplianceControls(complianceControls),
+    notes: `Imported ${logs.length} audit log records and derived security posture.`,
+  };
+}
+
 function generateDashboardData(config) {
   const riskScoreMap = {
     low: 88,
@@ -316,7 +388,27 @@ app.post('/api/simulate', (req, res) => {
 let industryDataResults = null;
 
 app.post('/api/industry-data', (req, res) => {
-  const { industry, companySize, accountCount, dataClassification, riskLevel, compliance, notes } = req.body;
+  let industryDataPayload = req.body;
+  let derivedConfig = null;
+
+  const extractedLogs = extractLogsFromPayload(industryDataPayload);
+  if (extractedLogs) {
+    derivedConfig = deriveIndustryDataFromLogs(extractedLogs);
+  }
+
+  if (derivedConfig) {
+    industryDataPayload = derivedConfig;
+  }
+
+  const {
+    industry,
+    companySize,
+    accountCount,
+    dataClassification,
+    riskLevel,
+    compliance,
+    notes,
+  } = industryDataPayload;
 
   if (!industry || !companySize || !riskLevel || !Number.isFinite(accountCount) || accountCount <= 0) {
     return res.status(400).json({ success: false, message: "Missing or invalid required fields" });
