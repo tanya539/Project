@@ -220,8 +220,17 @@ export default function DataInputPage() {
         setTimeout(() => setSubmitted(false), 2000);
         router.push("/guardrails");
       } else {
+        let errorMessage = "Please verify your input or try again.";
+        try {
+          const errorPayload = await response.json();
+          if (typeof errorPayload?.message === "string" && errorPayload.message.trim()) {
+            errorMessage = errorPayload.message;
+          }
+        } catch {
+          // Keep default message when backend does not return JSON.
+        }
         toast.error("Failed to submit data", {
-          description: "Please verify your input or try again.",
+          description: errorMessage,
         });
       }
     } catch (error) {
