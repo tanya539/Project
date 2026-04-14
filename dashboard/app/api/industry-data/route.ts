@@ -6,23 +6,75 @@ const BACKEND_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   "http://localhost:3001";
 
+function normalizeBaseUrl(url: string) {
+  return url.replace(/\/$/, "");
+}
+
+function getCandidateUrls(method: "GET" | "POST") {
+  const base = normalizeBaseUrl(BACKEND_BASE_URL);
+  const looksLikeApiBase = /\/api$/i.test(base);
+
+  const candidates = new Set<string>();
+
+  if (looksLikeApiBase) {
+    candidates.add(`${base}/industry-data`);
+  } else {
+    candidates.add(`${base}/api/industry-data`);
+  }
+
+  if (method === "POST") {
+    candidates.add(`${base}/analyze`);
+  }
+
+  return Array.from(candidates);
+}
+
 async function proxyToBackend(method: "GET" | "POST", body?: unknown) {
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}/api/industry-data`, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
-      cache: "no-store",
-    });
+    const urls = getCandidateUrls(method);
+    let lastStatus = 502;
+    let lastPayload: unknown = {
+      success: false,
+      message: "Backend did not return a valid response.",
+    };
 
-    const contentType = response.headers.get("content-type") ?? "";
-    const payload = contentType.includes("application/json")
-      ? await response.json()
-      : { success: response.ok, message: await response.text() };
+    for (const url of urls) {
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: method === "POST" ? JSON.stringify(body ?? {}) : undefined,
+        cache: "no-store",
+      });
 
-    return NextResponse.json(payload, { status: response.status });
+      const contentType = response.headers.get("content-type") ?? "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : { success: response.ok, message: await response.text() };
+
+      if (response.ok) {
+        return NextResponse.json(payload, { status: response.status });
+      }
+
+      lastStatus = response.status;
+      lastPayload = payload;
+
+      // Try the next candidate when endpoint is missing on this backend version.
+      const missingRoute =
+        response.status === 404 ||
+        (typeof payload === "object" &&
+          payload !== null &&
+          "message" in payload &&
+          typeof (payload as { message?: unknown }).message === "string" &&
+          /Cannot\s+(GET|POST)/i.test((payload as { message: string }).message));
+
+      if (!missingRoute) {
+        break;
+      }
+    }
+
+    return NextResponse.json(lastPayload, { status: lastStatus });
   } catch {
     return NextResponse.json(
       {
