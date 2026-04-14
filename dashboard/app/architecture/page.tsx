@@ -22,6 +22,44 @@ interface ArchitectureData {
   controlFlow: string[];
 }
 
+const DEFAULT_COMPONENTS = [
+  {
+    id: "accounts",
+    name: "AWS Accounts",
+    description: "Security, log archive, and shared services account model.",
+    icon: "Layout",
+    color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  },
+  {
+    id: "iam",
+    name: "Identity & Access",
+    description: "Federated access and least-privilege role boundaries.",
+    icon: "Key",
+    color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  },
+  {
+    id: "guardrails",
+    name: "Guardrails",
+    description: "SCP and Config controls enforce policy-as-code.",
+    icon: "Shield",
+    color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  },
+  {
+    id: "monitoring",
+    name: "Monitoring",
+    description: "CloudTrail and GuardDuty feed central security telemetry.",
+    icon: "Activity",
+    color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+  },
+  {
+    id: "automation",
+    name: "Auto Remediation",
+    description: "Event-driven Lambda actions auto-fix policy violations.",
+    icon: "Cpu",
+    color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  },
+];
+
 export default function ArchitecturePage() {
   const [archData, setArchData] = useState<ArchitectureData | null>(null);
 
@@ -56,6 +94,15 @@ export default function ArchitecturePage() {
     icon: iconMap[comp.icon] || Layout,
   }));
 
+  const getComponent = (index: number) => {
+    if (components[index]) return components[index];
+    const fallback = DEFAULT_COMPONENTS[index] ?? DEFAULT_COMPONENTS[0];
+    return {
+      ...fallback,
+      icon: iconMap[fallback.icon] || Layout,
+    };
+  };
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-6xl mx-auto">
       <div className="flex justify-between items-center">
@@ -79,12 +126,12 @@ export default function ArchitecturePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative z-10 w-full">
           {/* Top Row */}
           <div className="col-start-2 flex justify-center">
-            <ArchCard {...components[0]} />
+            <ArchCard {...getComponent(0)} />
           </div>
 
           {/* Middle Row */}
           <div className="flex justify-center">
-            <ArchCard {...components[1]} />
+            <ArchCard {...getComponent(1)} />
           </div>
           <div className="flex justify-center">
             <div className="w-48 h-48 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center relative group">
@@ -96,15 +143,15 @@ export default function ArchitecturePage() {
             </div>
           </div>
           <div className="flex justify-center">
-            <ArchCard {...components[2]} />
+            <ArchCard {...getComponent(2)} />
           </div>
 
           {/* Bottom Row */}
           <div className="col-start-1 flex justify-center">
-            <ArchCard {...components[3]} />
+            <ArchCard {...getComponent(3)} />
           </div>
           <div className="col-start-3 flex justify-center">
-            <ArchCard {...components[4]} />
+            <ArchCard {...getComponent(4)} />
           </div>
         </div>
       </div>
