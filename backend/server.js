@@ -11,8 +11,7 @@ app.use(helmet({
   crossOriginResourcePolicy: false
 }));
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080'],
-  credentials: true
+  origin: "*"
 }));
 app.use(express.json());
 
@@ -387,7 +386,7 @@ app.post('/api/simulate', (req, res) => {
 // Industry data analysis endpoint
 let industryDataResults = null;
 
-app.post('/api/industry-data', (req, res) => {
+const handleIndustryData = (req, res) => {
   let industryDataPayload = req.body;
   let derivedConfig = null;
 
@@ -447,7 +446,11 @@ app.post('/api/industry-data', (req, res) => {
   });
 
   res.json({ success: true, data: industryDataConfig, recommendations, generated });
-});
+};
+
+app.post('/api/industry-data', handleIndustryData);
+// Backward-compatible endpoint for older clients still posting to /analyze.
+app.post('/analyze', handleIndustryData);
 
 app.get('/api/industry-data', (req, res) => {
   if (!industryDataConfig) {
