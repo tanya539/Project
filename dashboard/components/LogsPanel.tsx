@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { TerminalSquare, Search, Download, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { LogEntry } from "@/lib/store";
+import { API_BASE } from "@/lib/api";
 
 export default function LogsPanel({ limit = undefined }: { limit?: number }) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -12,7 +13,7 @@ export default function LogsPanel({ limit = undefined }: { limit?: number }) {
 
   useEffect(() => {
     const fetchLogs = async () => {
-      const res = await fetch('/api/logs');
+      const res = await fetch(`${API_BASE}/logs`);
       if (res.ok) {
         setLogs(await res.json());
       }

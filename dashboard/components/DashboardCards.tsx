@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Server, Shield, AlertTriangle, Layers, TrendingUp, TrendingDown } from "lucide-react";
 import { motion } from "framer-motion";
+import { API_BASE } from "@/lib/api";
 
 export default function DashboardCards() {
   const [stats, setStats] = useState({
@@ -14,7 +15,7 @@ export default function DashboardCards() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const res = await fetch('/api/stats');
+      const res = await fetch(`${API_BASE}/stats`);
       if (res.ok) {
         setStats(await res.json());
       }

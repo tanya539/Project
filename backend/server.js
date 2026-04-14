@@ -16,115 +16,221 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Mock data
-const violations = [
-  {
-    id: "v1",
-    type: "Public S3 Bucket (Sensitive Data)",
-    severity: "High",
-    status: "Auto-Fixed",
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: "v2",
-    type: "IAM Over-permission (AdminAccess)",
-    severity: "Medium",
-    status: "Auto-Fixed",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: "v3",
-    type: "Insecure SG Rule (0.0.0.0/0)",
-    severity: "High",
-    status: "Auto-Fixed",
-    timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
-  },
-];
+const violations = [];
+const logs = [];
 
-const logs = [
-  {
-    id: "l1",
-    message: "SCP Enforced: Denied unencrypted S3 bucket creation",
-    timestamp: new Date(Date.now() - 5000).toISOString(),
-  },
-];
-
-const stats = {
-  securityScore: 92,
-  totalViolations: 3,
+let stats = {
+  securityScore: 0,
+  totalViolations: 0,
   activeViolations: 0,
-  compliancePercentage: 98,
-  lastScan: new Date().toISOString(),
+  compliancePercentage: 0,
+  lastScan: null,
 };
 
-const frameworks = [
-  { name: "CIS AWS Foundations Benchmark v3.0", status: "Compliant", controlsPassed: 43, controlsTotal: 43 },
-  { name: "NIST SP 800-53 Rev. 5", status: "Action Required", controlsPassed: 112, controlsTotal: 115 },
-  { name: "SOC 2 Type II", status: "Compliant", controlsPassed: 64, controlsTotal: 64 },
-  { name: "ISO/IEC 27001:2022", status: "Compliant", controlsPassed: 114, controlsTotal: 114 },
-  { name: "PCI DSS v4.0", status: "Evaluating", controlsPassed: 0, controlsTotal: 0 },
-];
-
-const architecture = {
-  components: [
-    {
-      id: "accounts",
-      name: "AWS Accounts",
-      description: "Master, Security, Log Archive",
-      icon: "Layout",
-      color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    },
-    {
-      id: "iam",
-      name: "Identity & Access",
-      description: "Least-privilege IAM Roles",
-      icon: "Key",
-      color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-    },
-    {
-      id: "guardrails",
-      name: "Guardrails",
-      description: "SCP & AWS Config Rules",
-      icon: "Shield",
-      color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
-    },
-    {
-      id: "monitoring",
-      name: "Monitoring",
-      description: "CloudTrail & GuardDuty",
-      icon: "Activity",
-      color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
-    },
-    {
-      id: "lambda",
-      name: "Remediation",
-      description: "Automated Lambda Fixes",
-      icon: "Cpu",
-      color: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    },
-  ],
-  controlFlow: [
-    "Events are captured via CloudTrail and GuardDuty in member accounts.",
-    "Guardrails (AWS Config) evaluate resources against compliance policies.",
-    "Non-compliant resources trigger an EventBridge event for remediation.",
-    "Lambda functions execute predefined remediation actions (e.g., closing ports).",
-    "Logs are aggregated in the Central Log Archive for auditing.",
-    "Security Score is recalculated in real-time based on posture."
-  ]
+let frameworks = [];
+let architecture = {
+  components: [],
+  controlFlow: [],
+};
+let posture = {
+  score: 0,
+  trend: "0%",
+  lastUpdated: null,
+  categories: [],
+};
+let guardrailsData = {
+  scps: [],
+  configRules: [],
 };
 
-const posture = {
-  score: 92,
-  trend: "+2%",
-  lastUpdated: new Date().toISOString(),
-  categories: [
-    { name: "Encryption at Rest", score: 100, status: "Excellent" },
-    { name: "Network Security", score: 95, status: "Good" },
-    { name: "Access Management", score: 88, status: "Needs Attention" },
-    { name: "Monitoring & Logging", score: 100, status: "Excellent" },
-    { name: "Compliance", score: 90, status: "Good" }
-  ]
-};
+let industryDataConfig = null;
+
+function normalizeArray(input) {
+  if (Array.isArray(input)) return input;
+  if (typeof input === 'string') return input.split(/[,;|]/).map(v => v.trim()).filter(Boolean);
+  return [];
+}
+
+function generateDashboardData(config) {
+  const riskScoreMap = {
+    low: 88,
+    medium: 72,
+    high: 55,
+    critical: 38,
+  };
+
+  const baseScore = riskScoreMap[config.riskLevel] ?? 60;
+  const complianceBonus = Math.min(20, (config.compliance?.length || 0) * 4);
+  const securityScore = Math.min(100, Math.max(20, baseScore + complianceBonus));
+  const compliancePercentage = config.compliance?.length ? Math.min(100, 40 + config.compliance.length * 10) : 0;
+
+  const scoreCategory = (value) => {
+    if (value >= 90) return "Excellent";
+    if (value >= 75) return "Good";
+    if (value >= 60) return "Needs Attention";
+    return "Action Required";
+  };
+
+  const categories = [
+    {
+      name: "Encryption at Rest",
+      score: config.dataClassification?.includes("PII") || config.dataClassification?.includes("PHI") ? 92 : 100,
+      status: scoreCategory(config.dataClassification?.includes("PII") || config.dataClassification?.includes("PHI") ? 92 : 100),
+    },
+    {
+      name: "Network Security",
+      score: config.industry === "finance" || config.industry === "healthcare" ? 82 : 92,
+      status: scoreCategory(config.industry === "finance" || config.industry === "healthcare" ? 82 : 92),
+    },
+    {
+      name: "Access Management",
+      score: config.riskLevel === "critical" ? 58 : config.riskLevel === "high" ? 72 : 84,
+      status: scoreCategory(config.riskLevel === "critical" ? 58 : config.riskLevel === "high" ? 72 : 84),
+    },
+    {
+      name: "Monitoring & Logging",
+      score: config.compliance?.length ? 88 : 78,
+      status: scoreCategory(config.compliance?.length ? 88 : 78),
+    },
+    {
+      name: "Compliance",
+      score: compliancePercentage,
+      status: scoreCategory(compliancePercentage),
+    },
+  ];
+
+  const frameworksData = normalizeArray(config.compliance).map((fw) => {
+    const status = securityScore >= 70 ? "Compliant" : "Action Required";
+    const isCompliant = status === "Compliant";
+    return {
+      name: fw,
+      status,
+      controlsPassed: isCompliant ? Math.floor(Math.random() * 20 + 80) : Math.floor(Math.random() * 20 + 50),
+      controlsTotal: 100,
+      color: isCompliant ? "text-emerald-500" : "text-amber-500",
+      bg: isCompliant ? "bg-emerald-50" : "bg-amber-50",
+      border: isCompliant ? "border-emerald-200" : "border-amber-200",
+    };
+  });
+
+  const scps = [
+    {
+      name: "DENY-ROOT-ACCESS",
+      description: "Blocks all root account API activity across member accounts.",
+    },
+    {
+      name: "DENY-S3-PUBLIC-ACL",
+      description: "Prevents setting public ACLs on any S3 bucket across the organization.",
+    },
+    {
+      name: "DENY-UNENCRYPTED-EBS",
+      description: "Blocks launch of EC2 instances with unencrypted EBS volumes.",
+    },
+  ];
+
+  if (config.compliance?.includes("PCI DSS") || config.industry === "finance") {
+    scps.push({
+      name: "DENY-INSECURE-PAYMENT-ROUTES",
+      description: "Prevents unencrypted payment transaction flows.",
+    });
+  }
+
+  if (config.compliance?.includes("HIPAA") || config.industry === "healthcare") {
+    scps.push({
+      name: "DENY-PHI-EXFILTRATION",
+      description: "Prevents export of PHI data from protected stores.",
+    });
+  }
+
+  const configRules = [
+    {
+      name: "S3_BUCKET_SSL_REQUESTS_ONLY",
+      status: config.compliance?.includes("PCI DSS") ? "COMPLIANT" : "NON_COMPLIANT",
+    },
+    {
+      name: "CLOUDTRAIL_ENABLED",
+      status: config.compliance?.length ? "COMPLIANT" : "NON_COMPLIANT",
+    },
+    {
+      name: "ENCRYPTED_VOLUMES",
+      status: config.dataClassification?.length ? "COMPLIANT" : "NON_COMPLIANT",
+    },
+    {
+      name: "INCOMING_SSH_DISABLED",
+      status: config.riskLevel === "critical" ? "NON_COMPLIANT" : "COMPLIANT",
+    },
+  ];
+
+  const architectureData = {
+    components: [
+      {
+        id: "accounts",
+        name: "AWS Accounts",
+        description: (config.companySize || "Organization") + " account structure with security, log archive, and shared services.",
+        icon: "Layout",
+        color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+      },
+      {
+        id: "iam",
+        name: "Identity & Access",
+        description: "Least-privilege IAM roles and policy boundaries.",
+        icon: "Key",
+        color: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+      },
+      {
+        id: "guardrails",
+        name: "Guardrails",
+        description: "SCPs and AWS Config rules enforcing policy.",
+        icon: "Shield",
+        color: "bg-rose-500/20 text-rose-400 border-rose-500/30",
+      },
+      {
+        id: "monitoring",
+        name: "Monitoring",
+        description: "CloudTrail and GuardDuty events centralized for analysis.",
+        icon: "Activity",
+        color: "bg-indigo-500/20 text-indigo-400 border-indigo-500/30",
+      },
+    ],
+    controlFlow: [
+      "Resources are assessed against policy guardrails during provisioning.",
+      "AWS Config and GuardDuty monitor security posture continuously.",
+      "Violations trigger automated remediation and audit logging.",
+      "Security score is recalculated after each assessment.",
+    ],
+  };
+
+  const postureData = {
+    score: securityScore,
+    trend: securityScore >= 80 ? "+2%" : "+1%",
+    lastUpdated: new Date().toISOString(),
+    categories,
+  };
+
+  const guardrails = {
+    scps,
+    configRules,
+  };
+
+  const statsData = {
+    totalAccounts: config.accountCount,
+    activeResources: config.accountCount * 24,
+    securityScore,
+    totalViolations: 0,
+    activeViolations: 0,
+    compliancePercentage,
+    frameworksActive: config.compliance?.length || 0,
+    lastScan: new Date().toISOString(),
+  };
+
+  return {
+    stats: statsData,
+    frameworks: frameworksData,
+    architecture: architectureData,
+    posture: postureData,
+    guardrails,
+  };
+}
 
 // Routes
 app.get('/api/violations', (req, res) => {
@@ -139,8 +245,8 @@ app.patch('/api/violations', (req, res) => {
       violation.status = status;
       if (status === "Auto-Fixed") {
         logs.push({
-          id: `l${logs.length + 1}`,
-          message: `Lambda automatically remediated issue: ${violation.type}`,
+          id: 'l' + (logs.length + 1),
+          message: 'Lambda automatically remediated issue: ' + violation.type,
           timestamp: new Date().toISOString(),
         });
       }
@@ -174,21 +280,7 @@ app.get('/api/posture', (req, res) => {
 });
 
 app.get('/api/guardrails', (req, res) => {
-  res.json({
-    scps: [
-      { name: "DENY-ROOT-ACCESS", description: "Blocks all root account API activity across member accounts." },
-      { name: "DENY-REGION-RESTRICTION", description: "Restricts resource creation to approved AWS regions only." },
-      { name: "DENY-S3-PUBLIC-ACL", description: "Prevents setting public ACLs on any S3 bucket across the org." },
-      { name: "DENY-UNENCRYPTED-EBS", description: "Blocks launch of EC2 instances with unencrypted EBS volumes." },
-      { name: "DENY-DISABLE-GUARDDUTY", description: "Prevents any principal from disabling GuardDuty in any account." }
-    ],
-    configRules: [
-      { name: "S3_BUCKET_SSL_REQUESTS_ONLY", status: "COMPLIANT" },
-      { name: "CLOUDTRAIL_ENABLED", status: "COMPLIANT" },
-      { name: "ENCRYPTED_VOLUMES", status: "COMPLIANT" },
-      { name: "INCOMING_SSH_DISABLED", status: "NON_COMPLIANT" }
-    ]
-  });
+  res.json(guardrailsData);
 });
 
 app.post('/api/simulate', (req, res) => {
@@ -203,7 +295,7 @@ app.post('/api/simulate', (req, res) => {
   const randomType = violationTypes[Math.floor(Math.random() * violationTypes.length)];
 
   const newViolation = {
-    id: `v_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    id: 'v_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
     type: randomType.type,
     severity: randomType.severity,
     status: "Detected",
@@ -212,8 +304,8 @@ app.post('/api/simulate', (req, res) => {
 
   violations.push(newViolation);
   logs.push({
-    id: `l${logs.length + 1}`,
-    message: `Security violation detected: ${newViolation.type}`,
+    id: 'l' + (logs.length + 1),
+    message: 'Security violation detected: ' + newViolation.type,
     timestamp: new Date().toISOString(),
   });
 
@@ -221,47 +313,57 @@ app.post('/api/simulate', (req, res) => {
 });
 
 // Industry data analysis endpoint
-let industryDataConfig = null;
+let industryDataResults = null;
 
 app.post('/api/industry-data', (req, res) => {
   const { industry, companySize, accountCount, dataClassification, riskLevel, compliance, notes } = req.body;
 
-  if (!industry || !companySize) {
-    return res.status(400).json({ success: false, message: "Missing required fields" });
+  if (!industry || !companySize || !riskLevel || !Number.isFinite(accountCount) || accountCount <= 0) {
+    return res.status(400).json({ success: false, message: "Missing or invalid required fields" });
   }
 
   industryDataConfig = {
     industry,
     companySize,
     accountCount,
-    dataClassification,
+    dataClassification: Array.isArray(dataClassification) ? dataClassification : normalizeArray(dataClassification),
     riskLevel,
-    compliance,
-    notes,
+    compliance: Array.isArray(compliance) ? compliance : normalizeArray(compliance),
+    notes: notes || "",
     timestamp: new Date().toISOString(),
   };
 
-  // Generate industry-specific guardrail recommendations
   const recommendations = generateGuardrailRecommendations(industryDataConfig);
+  const generated = generateDashboardData(industryDataConfig);
+
+  stats = generated.stats;
+  frameworks = generated.frameworks;
+  architecture = generated.architecture;
+  posture = generated.posture;
+  guardrailsData = generated.guardrails;
+
+  industryDataResults = {
+    config: industryDataConfig,
+    recommendations,
+    generated,
+  };
 
   logs.push({
-    id: `l${logs.length + 1}`,
-    message: `Industry data ingested: ${industry}/${companySize}. Analyzing ${accountCount} account(s).`,
+    id: 'l' + (logs.length + 1),
+    message: 'Industry data imported for ' + industry + ' / ' + companySize + ' with ' + accountCount + ' accounts.',
     timestamp: new Date().toISOString(),
   });
 
-  res.json({ success: true, data: industryDataConfig, recommendations });
+  res.json({ success: true, data: industryDataConfig, recommendations, generated });
 });
 
-// Get industry data configuration
 app.get('/api/industry-data', (req, res) => {
   if (!industryDataConfig) {
     return res.status(404).json({ success: false, message: "No industry data configured" });
   }
-  res.json(industryDataConfig);
+  res.json({ config: industryDataConfig, generated: industryDataResults?.generated ?? null, recommendations: industryDataResults?.recommendations ?? null });
 });
 
-// Generate guardrail recommendations based on industry data
 function generateGuardrailRecommendations(config) {
   const recommendations = {
     preventive: [],
@@ -269,47 +371,43 @@ function generateGuardrailRecommendations(config) {
     responsive: [],
   };
 
-  // Risk-based recommendations
   if (config.riskLevel === 'critical' || config.riskLevel === 'high') {
     recommendations.preventive.push("Enable MFA enforcement for all IAM principals");
-    recommendations.preventive.push("Restrict access to sensitive resources with least-privilege IAM");
+    recommendations.preventive.push("Apply least-privilege IAM policies everywhere");
     recommendations.detective.push("Enable AWS Config for continuous compliance monitoring");
-    recommendations.responsive.push("Configure automatic remediation Lambda functions");
+    recommendations.responsive.push("Configure automated Lambda remediation flows");
   }
 
-  // Industry-specific recommendations
   if (config.industry === "finance" || config.industry === "healthcare") {
-    recommendations.preventive.push("Enable encryption at rest for all data stores");
-    recommendations.preventive.push("Implement network segmentation and VPC isolation");
+    recommendations.preventive.push("Encrypt all data at rest and in transit");
+    recommendations.preventive.push("Segment networks with private subnets");
     recommendations.detective.push("Enable GuardDuty for threat detection");
-    recommendations.detective.push("Enable AWS Config rule for PCI compliance");
+    recommendations.detective.push("Enforce AWS Config rules for sensitive workloads");
   }
 
-  // Compliance framework recommendations
   config.compliance.forEach(fw => {
     if (fw === "PCI DSS") {
       recommendations.preventive.push("Enforce encryption for payment card data");
-      recommendations.detective.push("Enable VPC Flow Logs for network monitoring");
+      recommendations.detective.push("Enable VPC Flow Logs for transaction monitoring");
     }
     if (fw === "HIPAA") {
-      recommendations.preventive.push("Enable HIPAA-eligible encryption");
+      recommendations.preventive.push("Enable HIPAA-eligible encryption for PHI stores");
       recommendations.preventive.push("Enable audit logging for PHI access");
     }
     if (fw === "GDPR") {
-      recommendations.preventive.push("Implement data residency controls");
-      recommendations.detective.push("Enable AWS CloudTrail for data access logs");
+      recommendations.preventive.push("Implement data residency controls and access logging");
+      recommendations.detective.push("Enable CloudTrail for data access events");
     }
   });
 
-  // Data classification recommendations
   if (config.dataClassification.includes("PII") || config.dataClassification.includes("PHI")) {
-    recommendations.preventive.push("Block public S3 bucket access");
+    recommendations.preventive.push("Block public S3 bucket access for sensitive data");
     recommendations.detective.push("Enable Amazon Macie for sensitive data discovery");
     recommendations.responsive.push("Implement automated data redaction for logs");
   }
 
   return {
-    summary: `Security posture recommendations for ${config.industry} (${config.companySize})`,
+    summary: 'Security posture recommendations for ' + config.industry + ' (' + config.companySize + ')',
     recommendations,
     appliedAt: new Date().toISOString(),
   };

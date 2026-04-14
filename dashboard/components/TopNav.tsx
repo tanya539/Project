@@ -12,26 +12,9 @@ interface Notification {
   timeLabel: string;
 }
 
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    title: "Security Alert",
-    message: "New violation detected: Public S3 bucket",
-    type: "error",
-    timeLabel: "5m ago"
-  },
-  {
-    id: "2",
-    title: "Compliance Update",
-    message: "CIS benchmark scan completed successfully",
-    type: "info",
-    timeLabel: "10m ago"
-  }
-];
-
 export default function TopNav() {
   const { theme, toggleTheme } = useTheme();
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
   const dismissNotification = (id: string) => {

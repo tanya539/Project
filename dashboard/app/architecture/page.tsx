@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Shield, Layout, Settings, Activity, Cpu, Key } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 interface ArchCardProps {
   name: string;
@@ -27,7 +28,7 @@ export default function ArchitecturePage() {
   useEffect(() => {
     const fetchArch = async () => {
       try {
-        const res = await fetch('/api/architecture');
+        const res = await fetch(`${API_BASE}/architecture`);
         if (res.ok) {
           setArchData(await res.json());
         }

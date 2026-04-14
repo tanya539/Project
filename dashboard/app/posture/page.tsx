@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ShieldCheck, TrendingUp, AlertTriangle } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 import Charts from "@/components/Charts";
 
 interface PostureData {
@@ -21,7 +22,7 @@ export default function SecurityPosturePage() {
   useEffect(() => {
     const fetchPosture = async () => {
       try {
-        const res = await fetch('/api/posture');
+        const res = await fetch(`${API_BASE}/posture`);
         if (res.ok) {
           setPostureData(await res.json());
         }
@@ -77,7 +78,7 @@ export default function SecurityPosturePage() {
         })}
       </div>
 
-      <Charts />
+      <Charts categories={postureData.categories} />
     </div>
   );
 }

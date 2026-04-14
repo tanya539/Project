@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, Send, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/api";
 
 interface IndustryData {
   industry: string;
@@ -27,6 +29,8 @@ export default function DataInputPage() {
 
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const router = useRouter();
 
   const industries = [
     "technology",
@@ -69,26 +73,26 @@ export default function DataInputPage() {
     return arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitIndustryData = async (payload: IndustryData) => {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/industry-data", {
+      const response = await fetch(`${API_BASE}/industry-data`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
         toast.success("Industry data submitted successfully!", {
-          description: "Your configuration will be analyzed with guardrails.",
+          description: "Your imported configuration is now being analyzed.",
         });
         setSubmitted(true);
         setTimeout(() => setSubmitted(false), 2000);
+        router.push("/guardrails");
       } else {
         toast.error("Failed to submit data", {
-          description: "Please try again.",
+          description: "Please verify your input or try again.",
         });
       }
     } catch (error) {
@@ -100,6 +104,61 @@ export default function DataInputPage() {
       setLoading(false);
     }
   };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitIndustryData(formData);
+  };
+
+  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      toast.error("Upload a JSON file only.");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const importedData: IndustryData = {
+        industry: parsed.industry ?? formData.industry,
+        companySize: parsed.companySize ?? formData.companySize,
+        accountCount: Number(parsed.accountCount) || formData.accountCount,
+        dataClassification: Array.isArray(parsed.dataClassification)
+          ? parsed.dataClassification
+          : parsed.dataClassification
+          ? parsed.dataClassification.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
+          : [],
+        riskLevel: parsed.riskLevel ?? formData.riskLevel,
+        compliance: Array.isArray(parsed.compliance)
+          ? parsed.compliance
+          : parsed.compliance
+          ? parsed.compliance.toString().split(/[;,|]/).map((v: string) => v.trim()).filter(Boolean)
+          : [],
+        notes: parsed.notes ?? formData.notes,
+      };
+
+      setFormData(importedData);
+      toast.success("File loaded successfully. Submitting analysis...");
+      await submitIndustryData(importedData);
+    } catch (error) {
+      console.error("Error reading import file:", error);
+      toast.error("Unable to read JSON file.", {
+        description: "Make sure the file is valid JSON matching the expected schema.",
+      });
+    }
+  };
+
+  const triggerFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
@@ -116,9 +175,31 @@ export default function DataInputPage() {
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {/* Industry Selection */}
           <div>
-            <label className="block text-sm font-semibold text-white mb-3">
-              Industry
-            </label>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <label className="block text-sm font-semibold text-white mb-3">
+                  Industry
+                </label>
+                <p className="text-xs text-slate-400">Upload a JSON file or fill the form manually.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={triggerFileSelect}
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:border-sky-500"
+                >
+                  <Upload className="w-4 h-4" /> Import JSON
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleFileImport}
+                />
+              </div>
+            </div>
+
             <select
               value={formData.industry}
               onChange={(e) =>

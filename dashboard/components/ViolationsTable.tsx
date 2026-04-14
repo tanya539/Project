@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { ShieldAlert, ShieldCheck, Clock, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Violation } from "@/lib/store";
+import { API_BASE } from "@/lib/api";
 
 export default function ViolationsTable({ limit = undefined }: { limit?: number }) {
   const [violations, setViolations] = useState<Violation[]>([]);
 
   useEffect(() => {
     const fetchViolations = async () => {
-      const res = await fetch('/api/violations');
+      const res = await fetch(`${API_BASE}/violations`);
       if (res.ok) {
         setViolations(await res.json());
       }

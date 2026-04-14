@@ -1,14 +1,40 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Shield, Play, Download, Server } from "lucide-react";
 import AttackButton from "@/components/AttackButton";
 import LogsPanel from "@/components/LogsPanel";
+import { API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState({
+    totalAccounts: 0,
+    activeResources: 0,
+    securityScore: 0,
+    activeViolations: 0,
+    compliancePercentage: 0,
+    frameworksActive: 0,
+    lastScan: "",
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/stats`);
+        if (res.ok) {
+          setStats(await res.json());
+        }
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
   const handleRunAssessment = () => {
     toast.success("Security assessment started", {
-      description: "Evaluating 247 resources across 12 accounts.",
+      description: `Evaluating ${stats.activeResources} resources across ${stats.totalAccounts} accounts.`,
     });
   };
 
@@ -32,7 +58,9 @@ export default function DashboardPage() {
                 <h1 className="text-3xl font-semibold text-white">Security posture overview</h1>
               </div>
             </div>
-            <p className="max-w-2xl text-sm text-slate-400">Last evaluated · 2 minutes ago · 247 resources across 12 accounts.</p>
+            <p className="max-w-2xl text-sm text-slate-400">
+              Last evaluated · {stats.lastScan ? new Date(stats.lastScan).toLocaleString() : "pending"} · {stats.activeResources} resources across {stats.totalAccounts} accounts.
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -51,11 +79,11 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 md:grid-cols-5">
         {[
-          { label: "Security Score", value: "92%", detail: "+2%", color: "text-emerald-500", bg: "bg-emerald-50/10" },
-          { label: "Resources Protected", value: "247", detail: "+12", color: "text-sky-400", bg: "bg-sky-50/10" },
-          { label: "Open Findings", value: "3", detail: "-1", color: "text-rose-500", bg: "bg-rose-50/10" },
-          { label: "Guardrail Coverage", value: "100%", detail: "0%", color: "text-violet-400", bg: "bg-violet-50/10" },
-          { label: "Frameworks Active", value: "5", detail: "0", color: "text-amber-400", bg: "bg-amber-50/10" },
+          { label: "Security Score", value: `${stats.securityScore}%`, detail: "+2%", color: "text-emerald-500", bg: "bg-emerald-50/10" },
+          { label: "Resources Protected", value: stats.activeResources, detail: "+12", color: "text-sky-400", bg: "bg-sky-50/10" },
+          { label: "Open Findings", value: stats.activeViolations, detail: "-1", color: "text-rose-500", bg: "bg-rose-50/10" },
+          { label: "Guardrail Coverage", value: `${stats.compliancePercentage}%`, detail: "0%", color: "text-violet-400", bg: "bg-violet-50/10" },
+          { label: "Frameworks Active", value: stats.frameworksActive, detail: "0", color: "text-amber-400", bg: "bg-amber-50/10" },
         ].map((stat) => (
           <div key={stat.label} className={`rounded-3xl border border-slate-800 ${stat.bg} p-5`}>
             <div className="text-xs uppercase tracking-[0.3em] text-slate-500">{stat.label}</div>

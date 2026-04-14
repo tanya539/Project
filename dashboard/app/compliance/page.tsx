@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FileCheck, Shield } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 interface Framework {
   name: string;
@@ -19,7 +20,7 @@ export default function CompliancePage() {
   useEffect(() => {
     const fetchFrameworks = async () => {
       try {
-        const res = await fetch('/api/compliance');
+        const res = await fetch(`${API_BASE}/compliance`);
         if (res.ok) {
           setFrameworks(await res.json());
         }

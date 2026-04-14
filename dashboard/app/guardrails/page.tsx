@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api";
 import { Shield, CheckCircle2, XCircle } from "lucide-react";
 
 interface GuardrailData {
@@ -14,7 +15,7 @@ export default function GuardrailsPage() {
   useEffect(() => {
     const fetchGuardrails = async () => {
       try {
-        const res = await fetch('/api/guardrails');
+        const res = await fetch(`${API_BASE}/guardrails`);
         if (res.ok) {
           setGuardrailsData(await res.json());
         }
