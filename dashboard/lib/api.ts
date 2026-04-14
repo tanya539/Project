@@ -1,1 +1,2 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api` : "/api";
+// Always use same-origin API routes from the browser to avoid CORS failures.
+export const API_BASE = "/api";

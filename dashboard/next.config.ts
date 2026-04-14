@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
-const API_TARGET = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_TARGET =
+  process.env.BACKEND_API_URL ??
+  process.env.API_TARGET ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:3001";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,

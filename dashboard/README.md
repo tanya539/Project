@@ -35,6 +35,14 @@ A Next.js dashboard for monitoring and managing a secure AWS cloud landing zone.
 
 The dashboard now proxies all `/api/*` requests to the backend API on `http://localhost:3001`.
 
+For production deployments, set `BACKEND_API_URL` (or `API_TARGET`) in the dashboard service environment to your backend URL, for example:
+
+```env
+BACKEND_API_URL=https://project-backend-hsij.onrender.com
+```
+
+Do not use `NEXT_PUBLIC_API_URL` for this value because that exposes the backend URL to the browser and can trigger CORS errors.
+
 To run the standalone backend:
 ```bash
 cd ../backend
